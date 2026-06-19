@@ -74,7 +74,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             if (!text && !imgB64) return;
             append('user', text, imgSrc);
             
-            // Передаем правильные имена полей для Pydantic-модели бэкенда
             const p = { message: text, image: imgB64, mimeType: imgMime };
             
             chatIn.value = ''; imgB64 = null; imgSrc = null; fileEl.value = ''; prevCont.style.display = 'none';
@@ -121,7 +120,9 @@ async def chat_endpoint(request: ChatRequest):
     ]
     
     selected_key = random.choice(api_keys)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={selected_key}"
+    
+    # Исправили путь: убрали "models/" и обновили до актуальной gemini-2.5-flash
+    url = f"https://generativelanguage.googleapis.com/v1beta/gemini-2.5-flash:generateContent?key={selected_key}"
     
     parts = []
     if request.message:
@@ -147,7 +148,6 @@ async def chat_endpoint(request: ChatRequest):
         response = requests.post(url, json=payload, headers={"Content-Type": "application/json"})
         response_data = response.json()
         
-        # Если Google вернул ошибку, выводим её текст прямо в чат для диагностики
         if 'error' in response_data:
             return {"content": f"Ошибка Google API: {response_data['error'].get('message', 'Неизвестная ошибка')}"}
             
