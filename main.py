@@ -7,7 +7,6 @@ from typing import Optional
 
 app = FastAPI()
 
-# Перенесли весь интерфейс yortAI в чистую и безопасную строку
 HTML_CONTENT = """<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -74,7 +73,10 @@ HTML_CONTENT = """<!DOCTYPE html>
             const text = chatIn.value.trim();
             if (!text && !imgB64) return;
             append('user', text, imgSrc);
+            
+            // Передаем правильные имена полей для Pydantic-модели бэкенда
             const p = { message: text, image: imgB64, mimeType: imgMime };
+            
             chatIn.value = ''; imgB64 = null; imgSrc = null; fileEl.value = ''; prevCont.style.display = 'none';
             const loadDiv = document.createElement('div');
             loadDiv.className = 'message ai-message'; loadDiv.innerText = 'yortAI думает...';
@@ -113,34 +115,43 @@ async def read_index():
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    # Твои рабочие API ключи
     api_keys = [
         "AIzaSyA9G33A-dn6Drlaamh98hqENNBbTlvIiMk",
         "AIzaSyBFDKq0ywvBsHycEuUZGfYDzDvvaIH1GOM"
     ]
     
     selected_key = random.choice(api_keys)
-    
-    # Работаем через стабильную модель 1.5-flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={selected_key}"
     
     parts = []
     if request.message:
         parts.append({"text": request.message})
     if request.image:
-        parts.append({"inlineData": {"mimeType": request.mimeType or "image/jpeg", "data": request.image}})
+        parts.append({
+            "inlineData": {
+                "mimeType": request.mimeType if request.mimeType else "image/jpeg",
+                "data": request.image
+            }
+        })
         
     if not parts:
         raise HTTPException(status_code=400, detail="Запрос пустой")
 
+    payload = {
+        "contents": [{
+            "parts": parts
+        }]
+    }
+
     try:
-        response = requests.post(url, json={"contents": [{"parts": parts}]}, headers={"Content-Type": "application/json"})
+        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"})
         response_data = response.json()
         
-        # Если гугл ругнулся на ключ или лимит
+        # Если Google вернул ошибку, выводим её текст прямо в чат для диагностики
         if 'error' in response_data:
-            return {"content": f"Ошибка со стороны Google API: {response_data['error'].get('message')}"}
+            return {"content": f"Ошибка Google API: {response_data['error'].get('message', 'Неизвестная ошибка')}"}
             
         return {"content": response_data['candidates'][0]['content']['parts'][0]['text']}
     except Exception as e:
+        print(f"Ошибка при запросе к Gemini API: {e}")
         return {"content": f"Не удалось обработать запрос бэкендом: {str(e)}"}
