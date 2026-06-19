@@ -7,6 +7,7 @@ from typing import Optional
 
 app = FastAPI()
 
+# Вся разметка находится прямо здесь. Никаких index.html на сервере не нужно!
 HTML_CONTENT = """<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -121,8 +122,8 @@ async def chat_endpoint(request: ChatRequest):
     
     selected_key = random.choice(api_keys)
     
-    # Исправленный базовый URL с корректной структурой эндпоинта v1beta
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={selected_key}"
+    # Используем стабильную и проверенную структуру URL для v1beta
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={selected_key}"
     
     parts = []
     if request.message:
