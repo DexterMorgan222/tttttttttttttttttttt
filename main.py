@@ -1,4 +1,3 @@
-import os
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
@@ -33,7 +32,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 </head>
 <body>
     <div id="chatContainer">
-        <div class="message ai-message">Система yortAI готова. Введите ваш запрос или прикрепите изображение.</div>
+        <div class="message ai-message">Система yortAI готова. Работаем через OpenRouter (Gemini 2.5 Flash).</div>
     </div>
     <div class="bottom-panel">
         <div id="previewContainer"><img id="imagePreview" src="" alt="Превью"><button id="cancelImgBtn" type="button">X</button></div>
@@ -114,37 +113,37 @@ async def read_index():
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    # Теперь ключ берется из настроек сервера Render, а не палится в коде!
-    selected_key = os.getenv("GEMINI_KEY")
+    # Бесплатный публичный ключ OpenRouter для тестов, его не забанит Google
+    api_key = "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"
+    url = "https://openrouter.ai/api/v1/chat/completions"
     
-    if not selected_key:
-        return {"content": "Ошибка бэкенда: На сервере не задан API ключ (GEMINI_KEY)."}
-        
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={selected_key}"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
     
-    parts = []
+    # Формируем контент для модели google/gemini-2.5-flash
+    content_list = []
     if request.message:
-        parts.append({"text": request.message})
+        content_list.append({"type": "text", "text": request.message})
     if request.image:
-        parts.append({
-            "inlineData": {
-                "mimeType": request.mimeType if request.mimeType else "image/jpeg",
-                "data": request.image
-            }
+        content_list.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{request.mimeType};base64,{request.image}"}
         })
-        
-    if not parts:
-        raise HTTPException(status_code=400, detail="Запрос пустой")
 
-    payload = {"contents": [{"parts": parts}]}
+    payload = {
+        "model": "google/gemini-2.5-flash",
+        "messages": [{"role": "user", "content": content_list}]
+    }
 
     try:
-        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"})
+        response = requests.post(url, json=payload, headers=headers)
         response_data = response.json()
         
         if 'error' in response_data:
-            return {"content": f"Ошибка ИИ: {response_data['error'].get('message', 'Неизвестная ошибка')}"}
+            return {"content": f"Ошибка ИИ: {response_data['error'].get('message', 'Ошибка OpenRouter')}"}
             
-        return {"content": response_data['candidates'][0]['content']['parts'][0]['text']}
+        return {"content": response_data['choices'][0]['message']['content']}
     except Exception as e:
-        return {"content": f"Ошибка обработки запроса: {str(e)}"}
+        return {"content": f"Ошибка обработки: {str(e)}"}
