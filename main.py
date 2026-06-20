@@ -1,5 +1,5 @@
+import os
 import requests
-import json
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -28,7 +28,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 </head>
 <body>
     <div id="chatContainer">
-        <div class="message ai-message">Система yortAI готова. Подключен стабильный безлимитный ИИ-канал.</div>
+        <div class="message ai-message">Система yortAI готова. Подключена модель Gemini 2.5 Flash.</div>
     </div>
     <div class="bottom-panel">
         <div class="input-container">
@@ -60,7 +60,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 const d = await res.json();
                 loadDiv.innerText = d.content;
             } catch {
-                loadDiv.innerText = "Ошибка соединения с сервером.";
+                loadDiv.innerText = "Ошибка соединения с бэкендом сервером.";
             }
             chatCont.scrollTop = chatCont.scrollHeight;
         }
@@ -86,51 +86,27 @@ async def read_index():
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    if not request.message:
-        raise HTTPException(status_code=400, detail="Пустой запрос")
-
-    init_url = "https://duckduckgo.com/duckchat/v1/status"
-    headers = {"x-vqd-accept": "1", "User-Agent": "Mozilla/5.0"}
+    # Безопасно вытаскиваем секретный ключ из переменных среды Render
+    selected_key = os.getenv("GEMINI_KEY")
     
+    if not selected_key:
+        return {"content": "Ошибка настройки: В панели управления Render не задана переменная GEMINI_KEY."}
+        
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={selected_key}"
+    
+    payload = {
+        "contents": [{
+            "parts": [{"text": request.message}]
+        }]
+    }
+
     try:
-        init_res = requests.get(init_url, headers=headers)
-        vqd_token = init_res.headers.get("x-vqd-token")
+        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"})
+        response_data = response.json()
         
-        if not vqd_token:
-            return {"content": "Не удалось запустить ИИ-сессию. Попробуйте еще раз."}
+        if 'error' in response_data:
+            return {"content": f"Ошибка от Google API: {response_data['error'].get('message', 'Неизвестная ошибка')}"}
             
-        chat_url = "https://duckduckgo.com/duckchat/v1/chat"
-        chat_headers = {
-            "x-vqd-token": vqd_token,
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
-        payload = {
-            "model": "gpt-4o-mini",
-            "messages": [{"role": "user", "content": request.message}]
-        }
-        
-        response = requests.post(chat_url, json=payload, headers=chat_headers)
-        
-        lines = response.text.split("\n")
-        full_text = ""
-        for line in lines:
-            if line.startswith("data:"):
-                data_content = line[5:].strip()
-                if data_content == "[DONE]":
-                    break
-                try:
-                    js = json.loads(data_content)
-                    if "message" in js:
-                        full_text += js["message"]
-                except:
-                    continue
-                    
-        if not full_text:
-            return {"content": "ИИ временно не ответил. Напишите запрос повторно."}
-            
-        return {"content": full_text.strip()}
-        
+        return {"content": response_data['candidates'][0]['content']['parts'][0]['text']}
     except Exception as e:
-        return {"content": f"Ошибка шлюза: {str(e)}"}
+        return {"content": f"Ошибка на стороне сервера: {str(e)}"}
