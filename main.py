@@ -113,16 +113,17 @@ async def read_index():
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    # Бесплатный публичный ключ OpenRouter для тестов, его не забанит Google
     api_key = "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"
     url = "https://openrouter.ai/api/v1/chat/completions"
     
+    # Добавили обязательные заголовки HTTP-Referer и X-Title, чтобы убрать ошибку User not found
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://yortai-0n7b.onrender.com",
+        "X-Title": "yortAI Studio"
     }
     
-    # Формируем контент для модели google/gemini-2.5-flash
     content_list = []
     if request.message:
         content_list.append({"type": "text", "text": request.message})
