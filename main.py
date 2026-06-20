@@ -1,4 +1,5 @@
 import requests
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -88,7 +89,6 @@ async def chat_endpoint(request: ChatRequest):
     if not request.message:
         raise HTTPException(status_code=400, detail="Пустой запрос")
 
-    # Инициализация сессии с DuckDuckGo AI для получения валидного токена
     init_url = "https://duckduckgo.com/duckchat/v1/status"
     headers = {"x-vqd-accept": "1", "User-Agent": "Mozilla/5.0"}
     
@@ -99,7 +99,6 @@ async def chat_endpoint(request: ChatRequest):
         if not vqd_token:
             return {"content": "Не удалось запустить ИИ-сессию. Попробуйте еще раз."}
             
-        # Отправка запроса к модели
         chat_url = "https://duckduckgo.com/duckchat/v1/chat"
         chat_headers = {
             "x-vqd-token": vqd_token,
@@ -114,15 +113,13 @@ async def chat_endpoint(request: ChatRequest):
         
         response = requests.post(chat_url, json=payload, headers=chat_headers)
         
-        # Парсим текстовый поток ответов DDG
         lines = response.text.split("\n")
         full_text = ""
         for line in lines:
             if line.startswith("data:"):
-                data_content = line shadow = line[5:].strip()
+                data_content = line[5:].strip()
                 if data_content == "[DONE]":
                     break
-                import json
                 try:
                     js = json.loads(data_content)
                     if "message" in js:
