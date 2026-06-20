@@ -15,7 +15,6 @@ HTML_CONTENT = """<!DOCTYPE html>
     <title>yortAI Studio Dual</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-        header { display: none !important; }
         body { background-color: #121212; color: #e0e0e0; display: flex; flex-direction: column; height: 100vh; }
         #chatContainer { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
         .message { max-width: 75%; padding: 12px 16px; border-radius: 18px; font-size: 15px; line-height: 1.5; word-wrap: break-word; }
@@ -75,17 +74,18 @@ HTML_CONTENT = """<!DOCTYPE html>
             append('user', text, imgSrc);
             
             const p = { message: text, image: imgB64, mimeType: imgMime };
-            
             chatIn.value = ''; imgB64 = null; imgSrc = null; fileEl.value = ''; prevCont.style.display = 'none';
+            
             const loadDiv = document.createElement('div');
             loadDiv.className = 'message ai-message'; loadDiv.innerText = 'yortAI думает...';
             chatCont.appendChild(loadDiv); chatCont.scrollTop = chatCont.scrollHeight;
+            
             try {
                 const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
                 const d = await res.json();
                 loadDiv.innerText = d.content;
             } catch {
-                loadDiv.innerText = "Ошибка бэкенда.";
+                loadDiv.innerText = "Ошибка соединения с сервером.";
             }
             chatCont.scrollTop = chatCont.scrollHeight;
         }
@@ -118,10 +118,9 @@ async def chat_endpoint(request: ChatRequest):
         "AIzaSyA9G33A-dn6Drlaamh98hqENNBbTlvIiMk",
         "AIzaSyBFDKq0ywvBsHycEuUZGfYDzDvvaIH1GOM"
     ]
-    
     selected_key = random.choice(api_keys)
     
-    # Изменили эндпоинт на стабильный /v1/ и указали модель gemini-2.5-flash
+    # Жестко используем стабильную версию v1 и модель gemini-2.5-flash
     url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={selected_key}"
     
     parts = []
@@ -138,20 +137,15 @@ async def chat_endpoint(request: ChatRequest):
     if not parts:
         raise HTTPException(status_code=400, detail="Запрос пустой")
 
-    payload = {
-        "contents": [{
-            "parts": parts
-        }]
-    }
+    payload = {"contents": [{"parts": parts}]}
 
     try:
         response = requests.post(url, json=payload, headers={"Content-Type": "application/json"})
         response_data = response.json()
         
         if 'error' in response_data:
-            return {"content": f"Ошибка Google API: {response_data['error'].get('message', 'Неизвестная ошибка')}"}
+            return {"content": f"Ошибка ИИ: {response_data['error'].get('message', 'Неизвестная ошибка')}"}
             
         return {"content": response_data['candidates'][0]['content']['parts'][0]['text']}
     except Exception as e:
-        print(f"Ошибка при запросе к Gemini API: {e}")
-        return {"content": f"Не удалось обработать запрос бэкендом: {str(e)}"}
+        return {"content": f"Ошибка обработки запроса: {str(e)}"}
