@@ -19,68 +19,43 @@ HTML_CONTENT = """<!DOCTYPE html>
         .message { max-width: 75%; padding: 12px 16px; border-radius: 18px; font-size: 15px; line-height: 1.5; word-wrap: break-word; }
         .user-message { background-color: #2b2b2b; color: #ffffff; align-self: flex-end; border-bottom-right-radius: 4px; }
         .ai-message { background-color: #1f1f1f; color: #e0e0e0; align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid #2d2d2d; }
-        .message-image { max-width: 100%; max-height: 200px; border-radius: 8px; margin-bottom: 8px; display: block; }
         .bottom-panel { background-color: #1a1a1a; padding: 15px; border-top: 1px solid #2d2d2d; display: flex; flex-direction: column; gap: 10px; }
         .input-container { display: flex; align-items: center; background-color: #252525; border-radius: 25px; padding: 5px 15px; border: 1px solid #333; }
-        #clipBtn { background: none; border: none; font-size: 22px; color: #888; cursor: pointer; margin-right: 10px; }
         #chatInput { flex: 1; background: none; border: none; color: #ffffff; font-size: 15px; outline: none; padding: 10px 0; }
         #sendBtn { background-color: #4A90E2; color: white; border: none; padding: 8px 20px; border-radius: 20px; font-weight: 600; cursor: pointer; }
-        #previewContainer { display: none; align-self: flex-start; position: relative; margin-left: 15px; margin-bottom: 5px; }
-        #imagePreview { max-width: 90px; max-height: 90px; border-radius: 8px; border: 2px solid #4A90E2; }
-        #cancelImgBtn { position: absolute; top: -6px; right: -6px; background-color: #ff3b30; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 11px; }
     </style>
 </head>
 <body>
     <div id="chatContainer">
-        <div class="message ai-message">Система yortAI готова. Подключен стабильный бесплатный шлюз ИИ.</div>
+        <div class="message ai-message">Система yortAI готова. Подключен стабильный безлимитный ИИ-канал.</div>
     </div>
     <div class="bottom-panel">
-        <div id="previewContainer"><img id="imagePreview" src="" alt="Превью"><button id="cancelImgBtn" type="button">X</button></div>
         <div class="input-container">
-            <input type="file" id="fileElement" accept="image/*" style="display: none;">
-            <button id="clipBtn" type="button">📎</button>
             <input type="text" id="chatInput" placeholder="Спроси ИИ..." autocomplete="off">
             <button id="sendBtn" type="button">ИДТИ</button>
         </div>
     </div>
     <script>
-        let imgB64 = null, imgMime = "image/jpeg", imgSrc = null;
-        const fileEl = document.getElementById('fileElement'), clipBt = document.getElementById('clipBtn');
-        const prevCont = document.getElementById('previewContainer'), imgPrev = document.getElementById('imagePreview');
-        const cancBt = document.getElementById('cancelImgBtn'), chatIn = document.getElementById('chatInput');
-        const sendBt = document.getElementById('sendBtn'), chatCont = document.getElementById('chatContainer');
-
-        clipBt.onclick = () => fileEl.click();
-        fileEl.onchange = function() {
-            const file = this.files[0];
-            if (file) {
-                imgMime = file.type;
-                const r = new FileReader();
-                r.onload = (e) => {
-                    imgSrc = e.target.result;
-                    imgB64 = e.target.result.split(',')[1];
-                    imgPrev.src = e.target.result;
-                    prevCont.style.display = 'block';
-                };
-                r.readAsDataURL(file);
-            }
-        };
-        cancBt.onclick = () => { imgB64 = null; imgSrc = null; fileEl.value = ''; prevCont.style.display = 'none'; };
+        const chatIn = document.getElementById('chatInput');
+        const sendBt = document.getElementById('sendBtn');
+        const chatCont = document.getElementById('chatContainer');
 
         async function send() {
             const text = chatIn.value.trim();
-            if (!text && !imgB64) return;
-            append('user', text, imgSrc);
+            if (!text) return;
+            append('user', text);
             
-            const p = { message: text, image: imgB64, mimeType: imgMime };
-            chatIn.value = ''; imgB64 = null; imgSrc = null; fileEl.value = ''; prevCont.style.display = 'none';
-            
+            chatIn.value = '';
             const loadDiv = document.createElement('div');
             loadDiv.className = 'message ai-message'; loadDiv.innerText = 'yortAI думает...';
             chatCont.appendChild(loadDiv); chatCont.scrollTop = chatCont.scrollHeight;
             
             try {
-                const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+                const res = await fetch('/api/chat', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ message: text }) 
+                });
                 const d = await res.json();
                 loadDiv.innerText = d.content;
             } catch {
@@ -91,11 +66,10 @@ HTML_CONTENT = """<!DOCTYPE html>
         sendBt.onclick = send;
         chatIn.onkeydown = (e) => { if (e.key === 'Enter') send(); };
 
-        function append(sender, t, src) {
+        function append(sender, t) {
             const d = document.createElement('div');
             d.className = 'message ' + (sender === 'user' ? 'user-message' : 'ai-message');
-            if (src) { const i = document.createElement('img'); i.src = src; i.className = 'message-image'; d.appendChild(i); }
-            if (t) { const s = document.createElement('span'); s.innerText = t; d.appendChild(s); }
+            const s = document.createElement('span'); s.innerText = t; d.appendChild(s);
             chatCont.appendChild(d); chatCont.scrollTop = chatCont.scrollHeight;
         }
     </script>
@@ -104,8 +78,6 @@ HTML_CONTENT = """<!DOCTYPE html>
 
 class ChatRequest(BaseModel):
     message: str
-    image: Optional[str] = None
-    mimeType: Optional[str] = "image/jpeg"
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
@@ -113,33 +85,55 @@ async def read_index():
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    # Работаем через свободный отказоустойчивый прокси-эндпоинт без ключей
-    url = "https://chateverywhere.app/api/chat/"
-    
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    
-    prompt = request.message
-    if request.image:
-        prompt += f" [Изображение прикреплено: data:{request.mimeType};base64,{request.image}]"
+    if not request.message:
+        raise HTTPException(status_code=400, detail="Пустой запрос")
 
-    payload = {
-        "model": "google/gemini-2.5-flash",
-        "messages": [{"role": "user", "content": prompt}]
-    }
-
+    # Инициализация сессии с DuckDuckGo AI для получения валидного токена
+    init_url = "https://duckduckgo.com/duckchat/v1/status"
+    headers = {"x-vqd-accept": "1", "User-Agent": "Mozilla/5.0"}
+    
     try:
-        response = requests.post(url, json=payload, headers=headers)
+        init_res = requests.get(init_url, headers=headers)
+        vqd_token = init_res.headers.get("x-vqd-token")
         
-        if response.status_code != 200:
-            # Запасной шлюз на случай сбоя основного
-            alt_url = "https://api.duckduckgo.com/html/"
-            return {"content": "Основной канал перегружен. Пожалуйста, отправьте запрос повторно через пару секунд."}
+        if not vqd_token:
+            return {"content": "Не удалось запустить ИИ-сессию. Попробуйте еще раз."}
             
-        response_data = response.json()
-        ai_response = response_data['choices'][0]['message']['content']
-        return {"content": ai_response}
+        # Отправка запроса к модели
+        chat_url = "https://duckduckgo.com/duckchat/v1/chat"
+        chat_headers = {
+            "x-vqd-token": vqd_token,
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0"
+        }
+        
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": request.message}]
+        }
+        
+        response = requests.post(chat_url, json=payload, headers=chat_headers)
+        
+        # Парсим текстовый поток ответов DDG
+        lines = response.text.split("\n")
+        full_text = ""
+        for line in lines:
+            if line.startswith("data:"):
+                data_content = line shadow = line[5:].strip()
+                if data_content == "[DONE]":
+                    break
+                import json
+                try:
+                    js = json.loads(data_content)
+                    if "message" in js:
+                        full_text += js["message"]
+                except:
+                    continue
+                    
+        if not full_text:
+            return {"content": "ИИ временно не ответил. Напишите запрос повторно."}
+            
+        return {"content": full_text.strip()}
+        
     except Exception as e:
-        return {"content": "Не удалось связаться с сервером ИИ. Попробуйте еще раз."}
+        return {"content": f"Ошибка шлюза: {str(e)}"}
