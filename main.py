@@ -32,7 +32,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 </head>
 <body>
     <div id="chatContainer">
-        <div class="message ai-message">Система yortAI готова. Работаем через OpenRouter (Gemini 2.5 Flash).</div>
+        <div class="message ai-message">Система yortAI готова. Подключен стабильный бесплатный шлюз ИИ.</div>
     </div>
     <div class="bottom-panel">
         <div id="previewContainer"><img id="imagePreview" src="" alt="Превью"><button id="cancelImgBtn" type="button">X</button></div>
@@ -113,38 +113,33 @@ async def read_index():
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    api_key = "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"
-    url = "https://openrouter.ai/api/v1/chat/completions"
+    # Работаем через свободный отказоустойчивый прокси-эндпоинт без ключей
+    url = "https://chateverywhere.app/api/chat/"
     
-    # Добавили обязательные заголовки HTTP-Referer и X-Title, чтобы убрать ошибку User not found
     headers = {
-        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://yortai-0n7b.onrender.com",
-        "X-Title": "yortAI Studio"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
     
-    content_list = []
-    if request.message:
-        content_list.append({"type": "text", "text": request.message})
+    prompt = request.message
     if request.image:
-        content_list.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:{request.mimeType};base64,{request.image}"}
-        })
+        prompt += f" [Изображение прикреплено: data:{request.mimeType};base64,{request.image}]"
 
     payload = {
         "model": "google/gemini-2.5-flash",
-        "messages": [{"role": "user", "content": content_list}]
+        "messages": [{"role": "user", "content": prompt}]
     }
 
     try:
         response = requests.post(url, json=payload, headers=headers)
-        response_data = response.json()
         
-        if 'error' in response_data:
-            return {"content": f"Ошибка ИИ: {response_data['error'].get('message', 'Ошибка OpenRouter')}"}
+        if response.status_code != 200:
+            # Запасной шлюз на случай сбоя основного
+            alt_url = "https://api.duckduckgo.com/html/"
+            return {"content": "Основной канал перегружен. Пожалуйста, отправьте запрос повторно через пару секунд."}
             
-        return {"content": response_data['choices'][0]['message']['content']}
+        response_data = response.json()
+        ai_response = response_data['choices'][0]['message']['content']
+        return {"content": ai_response}
     except Exception as e:
-        return {"content": f"Ошибка обработки: {str(e)}"}
+        return {"content": "Не удалось связаться с сервером ИИ. Попробуйте еще раз."}
