@@ -1,4 +1,4 @@
-import random
+import os
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
@@ -114,13 +114,12 @@ async def read_index():
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    api_keys = [
-        "AIzaSyA9G33A-dn6Drlaamh98hqENNBbTlvIiMk",
-        "AIzaSyBFDKq0ywvBsHycEuUZGfYDzDvvaIH1GOM"
-    ]
-    selected_key = random.choice(api_keys)
+    # Теперь ключ берется из настроек сервера Render, а не палится в коде!
+    selected_key = os.getenv("GEMINI_KEY")
     
-    # Жестко используем стабильную версию v1 и модель gemini-2.5-flash
+    if not selected_key:
+        return {"content": "Ошибка бэкенда: На сервере не задан API ключ (GEMINI_KEY)."}
+        
     url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={selected_key}"
     
     parts = []
